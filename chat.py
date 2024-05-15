@@ -1,9 +1,8 @@
 from openai import OpenAI
 import gradio as gr
 
+
 # Define the predict function
-
-
 def predict(message, history, temperature, max_tokens):
 
     # Create a client
