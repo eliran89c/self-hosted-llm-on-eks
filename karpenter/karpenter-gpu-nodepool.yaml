@@ -1,0 +1,41 @@
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: nvidia-gpu
+spec:
+  template:
+    metadata:
+      labels:
+        nvidia.com/gpu.present: "true"
+    spec:
+      nodeClassRef:
+        name: nvidia-gpu
+
+      # Provisioned nodes will have these taints
+      # Taints may prevent pods from scheduling if they are not tolerated by the pod.
+      taints:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+          operator: Exists
+
+      requirements:
+        - key: "karpenter.k8s.aws/instance-family"
+          operator: In
+          values: ["g5", "g6"]
+        - key: "karpenter.k8s.aws/instance-size"
+          operator: In
+          values: ["xlarge", "2xlarge"] # Single GPU instance only
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["spot", "on-demand"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
+        - key: "karpenter.k8s.aws/instance-hypervisor"
+          operator: In
+          values: ["nitro"]
+  limits:
+    cpu: 100
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30s
