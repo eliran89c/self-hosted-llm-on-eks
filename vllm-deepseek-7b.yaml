@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepseek-r1-7b
+  labels:
+    app: deepseek-r1-7b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deepseek-r1-7b
+  template:
+    metadata:
+      labels:
+        app: deepseek-r1-7b
+    spec:
+      nodeSelector:
+        "node.kubernetes.io/instance-type": "g6.xlarge"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi
+          name: cache-volume
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.7.0
+          resources:
+            limits:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: 1
+            requests:
+              memory: "8Gi"
+              cpu: "2"
+              nvidia.com/gpu: 1
+          # define probe to check if the container is ready
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 30
+          args:
+            # full list of arguments: https://docs.vllm.ai/en/latest/models/engine_args.html
+            - --model=deepseek-ai/DeepSeek-R1-Distill-Qwen-7B # use the model name from HuggingFace
+            - --max-model-len=16000 # limit context window to 16k tokens to save memory
+            - --enforce-eager
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: cache-volume
+          ports:
+            - containerPort: 8000
+              name: http
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deepseek-r1-7b
+  labels:
+    app: deepseek-r1-7b
+spec:
+  selector:
+    app: deepseek-r1-7b
+  ports:
+    - protocol: TCP
+      port: 8000
+      name: http
+  type: ClusterIP

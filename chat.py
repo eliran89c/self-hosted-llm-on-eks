@@ -3,7 +3,7 @@ import gradio as gr
 
 
 # Define the predict function
-def predict(message, history, temperature, max_tokens):
+def predict(message, history, temperature, max_tokens, model):
 
     # Create a client
     client = OpenAI(base_url=f"http://localhost:8000/v1", api_key="test-key")
@@ -18,7 +18,7 @@ def predict(message, history, temperature, max_tokens):
     history_openai_format.append({"role": "user", "content": message})
 
     response = client.chat.completions.create(
-        model="mistralai/Mistral-7B-Instruct-v0.2",
+        model=model,
         messages=history_openai_format,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         additional_inputs=[
             gr.Slider(
                 label="Temperature",
-                value=0.5,
+                value=0.6,
                 minimum=0.0,
                 maximum=1.0,
                 step=0.05,
@@ -57,6 +57,15 @@ if __name__ == "__main__":
                 step=64,
                 interactive=True,
                 info="The maximum numbers of new tokens",
+            ),
+            gr.Dropdown(
+                choices=[
+                    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+                    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+                ],
+                interactive=True,
+                value="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+                label="Model",
             ),
         ]
     ).launch()
