@@ -1,7 +1,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: vllm
+  name: deepseek-r1-7b
   labels:
     release: kube-prometheus-stack
 spec:
@@ -10,4 +10,4 @@ spec:
     port: http
   selector:
     matchLabels:
-      app: vllm
+      app: deepseek-r1-7b

@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: deepseek-r1-32b
+  labels:
+    release: kube-prometheus-stack
+spec:
+  endpoints:
+  - path: '/metrics/'
+    port: http
+  selector:
+    matchLabels:
+      app: deepseek-r1-32b

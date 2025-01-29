@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm
+  name: deepseek-r1-32b
   labels:
-    app: vllm
+    app: deepseek-r1-32b
 spec:
-  replicas: 1
+  replicas: 1 # you can spin 2 replicas on a single node to dobule the throughput
   selector:
     matchLabels:
-      app: vllm
+      app: deepseek-r1-32b
   template:
     metadata:
       labels:
-        app: vllm
+        app: deepseek-r1-32b
     spec:
       nodeSelector:
-        "node.kubernetes.io/instance-type": "g6.xlarge"
+        "node.kubernetes.io/instance-type": "g6.12xlarge"
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists
@@ -23,20 +23,20 @@ spec:
       volumes:
         - emptyDir:
             medium: Memory
-            sizeLimit: 2Gi
+            sizeLimit: 10Gi
           name: cache-volume
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.4.1
+          image: vllm/vllm-openai:v0.7.0
           resources:
             limits:
-              memory: "16Gi"
-              cpu: "4"
-              nvidia.com/gpu: 1
+              memory: "80Gi"
+              cpu: "24"
+              nvidia.com/gpu: 2
             requests:
-              memory: "8Gi"
-              cpu: "2"
-              nvidia.com/gpu: 1
+              memory: "40Gi"
+              cpu: "6"
+              nvidia.com/gpu: 2
           # define probe to check if the container is ready
           readinessProbe:
             httpGet:
@@ -52,19 +52,15 @@ spec:
             httpGet:
               path: /health
               port: 8000
-            periodSeconds: 15
+            periodSeconds: 30
             successThreshold: 1
-            failureThreshold: 10
+            failureThreshold: 30
           args:
             # full list of arguments: https://docs.vllm.ai/en/latest/models/engine_args.html
-            - --model=mistralai/Mistral-7B-Instruct-v0.2 # use the model name from HuggingFace
+            - --model=deepseek-ai/DeepSeek-R1-Distill-Qwen-32B # use the model name from HuggingFace
+            - --tensor-parallel-size 2 # Run on 2 GPUs
             - --max-model-len=16000 # limit context window to 16k tokens to save memory
-          env:
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: huggingface-token
-                  key: token
+            - --enforce-eager
           volumeMounts:
             - mountPath: /dev/shm
               name: cache-volume
@@ -76,12 +72,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm
+  name: deepseek-r1-32b
   labels:
-    app: vllm
+    app: deepseek-r1-32b
 spec:
   selector:
-    app: vllm
+    app: deepseek-r1-32b
   ports:
     - protocol: TCP
       port: 8000

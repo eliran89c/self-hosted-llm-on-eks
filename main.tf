@@ -115,16 +115,21 @@ module "vpc" {
 ################################################################################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 19.21"
+  version = "~> 20.24"
 
   cluster_name    = local.name
-  cluster_version = "1.29"
+  cluster_version = "1.31"
 
-  vpc_id                         = module.vpc.vpc_id
-  subnet_ids                     = module.vpc.private_subnets
-  cluster_endpoint_public_access = true
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
 
-  # Fargate profiles use the cluster primary security group so these are not utilized
+  # Give the Terraform identity admin access to the cluster
+  # which will allow it to deploy resources into the cluster
+  enable_cluster_creator_admin_permissions = true
+  cluster_endpoint_public_access           = true
+
+  # Fargate profiles use the cluster primary security group
+  # Therefore these are not used and can be skipped
   create_cluster_security_group = false
   create_node_security_group    = false
 
@@ -142,19 +147,6 @@ module "eks" {
     }
   }
 
-  manage_aws_auth_configmap = true
-  aws_auth_roles = [
-    # We need to add in the Karpenter node IAM role for nodes launched by Karpenter
-    {
-      rolearn  = module.core_addons.karpenter.node_iam_role_arn
-      username = "system:node:{{EC2PrivateDNSName}}"
-      groups = [
-        "system:bootstrappers",
-        "system:nodes",
-      ]
-    },
-  ]
-
   tags = merge(local.tags, {
     # NOTE - if creating multiple security groups with this module, only tag the
     # security group that Karpenter should utilize with the following tag
@@ -168,7 +160,7 @@ module "eks" {
 ################################################################################
 module "core_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
-  version = "~> 1.14"
+  version = "~> 1.19"
 
   cluster_name      = module.eks.cluster_name
   cluster_endpoint  = module.eks.cluster_endpoint
@@ -212,13 +204,26 @@ module "core_addons" {
   enable_karpenter = true
 
   karpenter = {
+    chart_version       = "1.1.2"
     repository_username = data.aws_ecrpublic_authorization_token.token.user_name
     repository_password = data.aws_ecrpublic_authorization_token.token.password
   }
 
   karpenter_node = {
     iam_role_use_name_prefix = false
+    iam_role_additional_policies = [
+      "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    ]
   }
+
+  tags = local.tags
+}
+
+# Allow Karpenter access to the EKS cluster
+resource "aws_eks_access_entry" "karpenter_node_access_entry" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = module.core_addons.karpenter.node_iam_role_arn
+  type          = "EC2_LINUX"
 
   tags = local.tags
 }
@@ -242,7 +247,7 @@ resource "kubectl_manifest" "karpenter" {
 # We need to wait for the Karpenter manifest to be deployed first
 module "additional_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
-  version = "~> 1.16"
+  version = "~> 1.19"
 
   cluster_name      = module.eks.cluster_name
   cluster_endpoint  = module.eks.cluster_endpoint
@@ -272,7 +277,7 @@ module "additional_addons" {
     nvidia-plugin = {
       repository       = "https://nvidia.github.io/k8s-device-plugin"
       chart            = "nvidia-device-plugin"
-      chart_version    = "0.15.0"
+      chart_version    = "0.17.0"
       namespace        = "nvidia-device-plugin"
       create_namespace = true
     }
